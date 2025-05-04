@@ -12,6 +12,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - name: List files in build context
+        run: ls -l
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -24,3 +26,4 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/adfly8470/wipter/wipter:latest
+          no-cache: true
