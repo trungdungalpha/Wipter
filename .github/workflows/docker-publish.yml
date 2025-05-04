@@ -18,4 +18,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/wipter/wipter:latest
+          tags: ghcr.io/adfly8470/wipter/wipter:latest
