@@ -66,7 +66,8 @@ COPY start.sh /root/
 COPY start.sh /root/wipter/
 
 # Make start.sh executable
-RUN chmod +x /root/start.sh
+RUN chmod 777 /root/start.sh
+RUN chmod 777 /root/wipter/start.sh
 
 # Use tini as the entrypoint to manage processes
-ENTRYPOINT ["tini", "-s", "/root/start.sh"]
+ENTRYPOINT ["tini", "-s", "/root/wipter/start.sh"]
