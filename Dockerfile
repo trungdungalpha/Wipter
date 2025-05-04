@@ -62,7 +62,8 @@ RUN apt-get -y update && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy the start script
-COPY start.sh /root/start.sh
+COPY start.sh /root/
+COPY start.sh /root/wipter/
 
 # Make start.sh executable
 RUN chmod +x /root/start.sh
