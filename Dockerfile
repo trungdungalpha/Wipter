@@ -1,13 +1,20 @@
-FROM docker.io/ubuntu:latest AS wipter-desktop-package-builder
+# Stage 1: Build the wipter package downloader
+FROM --platform=$BUILDPLATFORM docker.io/ubuntu:latest AS wipter-desktop-package-builder
 
 # Install tools to download and handle the wipter package
 RUN apt-get -y update && apt-get -y --no-install-recommends --no-install-suggests install \
     binutils wget ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Download the wipter package
-RUN wget -q -O /tmp/wipter-app-x64.tar.gz https://provider-assets.wipter.com/latest/linux/x64/wipter-app-x64.tar.gz
+# Download the wipter package based on target architecture
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+      amd64) wget -q -O /tmp/wipter-app.tar.gz https://s3.us-west-2.amazonaws.com/provider-assets.wipter.com/latest/linux/x64/wipter-app-x64.tar.gz ;; \
+      arm64) wget -q -O /tmp/wipter-app.tar.gz https://s3.us-west-2.amazonaws.com/provider-assets.wipter.com/latest/linux/arm64/wipter-app-arm64.tar.gz ;; \
+      *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
+    esac
 
+# Stage 2: Final image
 FROM docker.io/ubuntu:latest
 
 # Install essential packages, including full D-Bus, X11, and keytar dependencies
@@ -49,11 +56,10 @@ RUN wget -q -O- https://packagecloud.io/dcommander/turbovnc/gpgkey | gpg --dearm
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy and extract the wipter tarball
-COPY --from=wipter-desktop-package-builder /tmp/wipter-app-x64.tar.gz /tmp/wipter-app-x64.tar.gz
+COPY --from=wipter-desktop-package-builder /tmp/wipter-app.tar.gz /tmp/wipter-app.tar.gz
 RUN mkdir -p /root/wipter && \
-    tar -xzf /tmp/wipter-app-x64.tar.gz -C /root/wipter --strip-components=1 && \
-    rm /tmp/wipter-app-x64.tar.gz
-
+    tar -xzf /tmp/wipter-app.tar.gz -C /root/wipter --strip-components=1 && \
+    rm /tmp/wipter-app.tar.gz
 
 # Install system dependencies for wipter and wipter.deb
 RUN apt-get -y update && \
@@ -63,11 +69,9 @@ RUN apt-get -y update && \
 
 # Copy the start script
 COPY start.sh /root/
-COPY start.sh /root/wipter/
 
 # Make start.sh executable
-RUN chmod 777 /root/start.sh
-RUN chmod 777 /root/wipter/start.sh
+RUN chmod +x /root/start.sh
 
 # Use tini as the entrypoint to manage processes
-ENTRYPOINT ["tini", "-s", "/root/wipter/start.sh"]
+ENTRYPOINT ["tini", "-s", "/root/start.sh"]
