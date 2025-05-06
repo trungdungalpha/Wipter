@@ -1,7 +1,9 @@
 name: Publish Docker Image
+
 on:
   push:
     branches: [main]
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -10,20 +12,29 @@ jobs:
       packages: write
       attestations: write
       id-token: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: List files in build context
         run: ls -l
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/adfly8470/wipter/wipter:latest
           no-cache: true
