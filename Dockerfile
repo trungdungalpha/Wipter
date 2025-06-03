@@ -42,8 +42,8 @@ RUN wget -q -O- https://packagecloud.io/dcommander/turbovnc/gpgkey | gpg --dearm
 # Download the wipter package based on architecture
 ARG TARGETARCH
 RUN case "${TARGETARCH}" in \
-      amd64) wget -q -O /tmp/wipter-app.tar.gz https://s3.us-west-2.amazonaws.com/provider-assets.wipter.com/latest/linux/x64/wipter-app-x64.tar.gz ;; \
-      arm64) wget -q -O /tmp/wipter-app.tar.gz https://s3.us-west-2.amazonaws.com/provider-assets.wipter.com/latest/linux/arm64/wipter-app-arm64.tar.gz ;; \
+      amd64) wget -q -O /tmp/wipter-app.tar.gz https://provider-assets.wipter.com/latest/linux/x64/wipter-app-x64.tar.gz ;; \
+      arm64) wget -q -O /tmp/wipter-app.tar.gz https://provider-assets.wipter.com/latest/linux/arm64/wipter-app-arm64.tar.gz ;; \
       *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
     esac && \
     mkdir -p /root/wipter && \
