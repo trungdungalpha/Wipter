@@ -31,7 +31,8 @@ RUN python3 -m venv /opt/venv && \
 RUN update-ca-certificates
 
 # Copy noVNC files
-RUN git clone https://github.com/novnc/noVNC.git /noVNC
+RUN git clone https://github.com/novnc/noVNC.git /noVNC && \
+    ln -s /noVNC/vnc_lite.html /noVNC/index.html
 
 # Install TurboVNC
 RUN wget -q -O- https://packagecloud.io/dcommander/turbovnc/gpgkey | gpg --dearmor > /etc/apt/trusted.gpg.d/TurboVNC.gpg && \
