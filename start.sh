@@ -135,9 +135,14 @@ while true; do
         echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter process died, restarting..."
         cd /root/wipter/
         /root/wipter/wipter-app &
+
+        # Wait a bit before attempting to close GUI
         sleep 10
-        # Close GUI after restart
+
+        # Close GUI after restart (ignore errors if no window)
         xdotool search --name Wipter | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
     fi
-    sleep 30  # Check every 30 seconds
+
+    sleep 120  # Check every 120 seconds (was 30)
 done
+
