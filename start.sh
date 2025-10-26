@@ -143,6 +143,6 @@ while true; do
         xdotool search --name Wipter | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
     fi
 
-    sleep 120  # Check every 120 seconds (was 30)
+    sleep 180  # Check every 180 seconds (was 30)
 done
 
