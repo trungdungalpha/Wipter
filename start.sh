@@ -129,7 +129,7 @@ restart_wipter() {
 RESTART_PID=$!
 echo "✅ Auto-restart monitor started (PID: $RESTART_PID, interval: 24h)"
 
-# Keep container running by monitoring wipter process
+# Keep container running by monitoring wipter process!
 while true; do
     if ! pgrep -f "wipter-app" > /dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter process died, restarting..."
