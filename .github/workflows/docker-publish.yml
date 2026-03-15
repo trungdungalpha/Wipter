@@ -1,41 +1,108 @@
-name: Publish Docker Image
+name: Build and Push Docker Image
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build even if no changes'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      attestations: write
-      id-token: write
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: List files in build context
-        run: ls -l
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Get short SHA
+        id: sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Check Docker Hub credentials
+        id: dockerhub
+        run: |
+          if [ -n "${{ secrets.DOCKER_HUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKER_HUB_TOKEN }}" ]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+            echo "username=${{ secrets.DOCKER_HUB_USERNAME }}" >> $GITHUB_OUTPUT
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "username=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log in to Docker Hub
+        if: steps.dockerhub.outputs.enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Prepare all tags
+        id: all_tags
+        run: |
+          TAGS="ghcr.io/${{ github.repository_owner }}/wipter:latest"
+          TAGS="$TAGS"$'\n'"ghcr.io/${{ github.repository_owner }}/wipter:${{ steps.sha.outputs.sha }}"
+          TAGS="$TAGS"$'\n'"ghcr.io/${{ github.repository_owner }}/wipter:${{ steps.date.outputs.date }}"
+          if [ "${{ steps.dockerhub.outputs.enabled }}" == "true" ]; then
+            TAGS="$TAGS"$'\n'"${{ steps.dockerhub.outputs.username }}/wipter:latest"
+            TAGS="$TAGS"$'\n'"${{ steps.dockerhub.outputs.username }}/wipter:${{ steps.sha.outputs.sha }}"
+            TAGS="$TAGS"$'\n'"${{ steps.dockerhub.outputs.username }}/wipter:${{ steps.date.outputs.date }}"
+          fi
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/trungdungalpha/wipter:latest
-          no-cache: false
+          tags: ${{ steps.all_tags.outputs.tags }}
+          no-cache: true
+
+      - name: Image info
+        run: |
+          echo "✅ Image built and pushed successfully!"
+          echo ""
+          echo "📦 GitHub Packages:"
+          echo "  - ghcr.io/${{ github.repository_owner }}/wipter:latest"
+          echo "  - ghcr.io/${{ github.repository_owner }}/wipter:${{ steps.sha.outputs.sha }}"
+          echo "  - ghcr.io/${{ github.repository_owner }}/wipter:${{ steps.date.outputs.date }}"
+          echo "  🔗 View at: https://github.com/${{ github.repository }}/pkgs/container/wipter"
+          echo ""
+          if [ -n "${{ secrets.DOCKER_HUB_USERNAME }}" ]; then
+            echo "📦 Docker Hub:"
+            echo "  - ${{ secrets.DOCKER_HUB_USERNAME }}/wipter:latest"
+            echo "  - ${{ secrets.DOCKER_HUB_USERNAME }}/wipter:${{ steps.sha.outputs.sha }}"
+            echo "  - ${{ secrets.DOCKER_HUB_USERNAME }}/wipter:${{ steps.date.outputs.date }}"
+            echo "  🔗 View at: https://hub.docker.com/r/${{ secrets.DOCKER_HUB_USERNAME }}/wipter"
+          else
+            echo "⚠️  Docker Hub not configured (DOCKER_HUB_USERNAME secret not set)"
+          fi
