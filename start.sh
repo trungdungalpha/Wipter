@@ -62,6 +62,11 @@ cd /root/wipter/
 /root/wipter/wipter-app &
 
 if ! [ -f ~/.wipter-configured ]; then
+    # Random delay trước khi login để tránh rate limit khi chạy hàng loạt container
+    LOGIN_DELAY=$((RANDOM % 600))
+    echo "$(date '+%Y-%m-%d %H:%M:%S'): Waiting ${LOGIN_DELAY}s before login (rate limit protection)..."
+    sleep $LOGIN_DELAY
+
     # Wait for the wipter window to be available
     while [[ "$(xdotool search --name Wipter| wc -l)" -lt 3 ]]; do
         sleep 10
