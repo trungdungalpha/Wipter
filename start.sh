@@ -11,10 +11,10 @@ if [ -z "$WIPTER_PASSWORD" ]; then
     exit 1
 fi
 
-# Start a D-Bus session (cần cho GNOME Keyring lưu login token)
+# Start a D-Bus session
 eval "$(dbus-launch --sh-syntax)"
 
-# Unlock the GNOME Keyring daemon (lưu session qua restart)
+# Unlock the GNOME Keyring daemon (non-interactively)
 echo 'mypassword' | gnome-keyring-daemon --unlock --replace
 
 # Enable job control
@@ -24,22 +24,40 @@ set -m
 rm -f /tmp/.X1-lock
 rm -rf /tmp/.X11-unix
 
-# Start Xvfb (thay TurboVNC - nhẹ hơn ~60MB RAM/container)
-# 800x600x16: resolution nhỏ, 16-bit màu giảm CPU render
-Xvfb :1 -screen 0 800x600x16 -nolisten tcp &
-XVFB_PID=$!
-echo "Started Xvfb (PID: $XVFB_PID)"
+# Set up the VNC password
+if [ -z "$VNC_PASSWORD" ]; then
+    echo "VNC_PASSWORD environment variable is not set. Using a random password."
+    VNC_PASSWORD="$(tr -dc '[:alpha:]' < /dev/urandom | fold -w "${1:-8}" | head -n1)"
+fi
+mkdir -p ~/.vnc
+echo -n "$VNC_PASSWORD" | /opt/TurboVNC/bin/vncpasswd -f > ~/.vnc/passwd
+chmod 400 ~/.vnc/passwd
+unset VNC_PASSWORD
 
-# Chờ Xvfb sẵn sàng
-sleep 1
+# Set VNC port from environment variable or default to 5900
+VNC_PORT=${VNC_PORT:-5900}
+
+# Set Websockify port from environment variable or default to 6080
+WEBSOCKIFY_PORT=${WEBSOCKIFY_PORT:-6080}
+
+# Start TurboVNC server and websockify based on WEB_ACCESS_ENABLED
+if [ "$WEB_ACCESS_ENABLED" == "true" ]; then
+    /opt/TurboVNC/bin/vncserver -rfbauth ~/.vnc/passwd -geometry 1200x800 -rfbport "${VNC_PORT}" -wm openbox :1 || {
+        echo "Error: Failed to start TurboVNC server on port ${VNC_PORT}"
+        exit 1
+    }
+    /opt/venv/bin/websockify --web=/noVNC "${WEBSOCKIFY_PORT}" localhost:"${VNC_PORT}" &
+else
+    /opt/TurboVNC/bin/vncserver -rfbauth ~/.vnc/passwd -geometry 1200x800 -rfbport "${VNC_PORT}" -wm openbox :1 || {
+        echo "Error: Failed to start TurboVNC server on port ${VNC_PORT}"
+        exit 1
+    }
+fi
 
 export DISPLAY=:1
 
-# Khởi động openbox WM - cần thiết để wipter-app không exit khi đóng window
-openbox &
-sleep 1
-
 echo "Starting Wipter....."
+# Start openbox as a minimal window manager
 cd /root/wipter/
 /root/wipter/wipter-app &
 
@@ -100,7 +118,7 @@ if ! [ -f ~/.wipter-configured ]; then
         # Không có lỗi → login thành công
         echo "$(date '+%Y-%m-%d %H:%M:%S'): ✅ Login SUCCESS on attempt ${attempt}"
         LOGIN_SUCCESS=true
-        # KHÔNG đóng window - để wipter-app tiếp tục chạy và generate traffic
+        xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
         break
     done
 
@@ -118,22 +136,27 @@ fi
 
 restart_wipter() {
     echo "$(date '+%Y-%m-%d %H:%M:%S'): Restarting Wipter to clear memory..."
-
+    
     # BƯỚC 1: Kill process wipter-app
     echo "Killing wipter-app process..."
     pkill -f "wipter-app"
-
+    
     sleep 5
-
-    # BƯỚC 2: Start wipter-app lại (session tự động load)
+    
+    # BƯỚC 2: Start wipter-app lại (GUI tự động mở, session tự động load)
     echo "Starting wipter-app..."
     cd /root/wipter/
     /root/wipter/wipter-app &
-
-    # Đợi server tái kết nối
-    echo "Waiting for wipter-app to reconnect..."
+    
+    # BƯỚC 3: Đợi GUI mở xong
+    echo "Waiting for GUI to open..."
     sleep 10
-    echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter restarted successfully."
+    
+    # BƯỚC 4: Đóng GUI đi (như lúc auto-login, để không lag)
+    echo "Closing GUI..."
+    xdotool search --name Wipter | tail -n1 | xargs xdotool windowclose
+    
+    echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter restarted successfully (process running, GUI closed, RAM cleared)"
 }
 
 # Run auto-restart every 24 hours in background
@@ -147,14 +170,20 @@ restart_wipter() {
 RESTART_PID=$!
 echo "✅ Auto-restart monitor started (PID: $RESTART_PID, interval: 24h)"
 
-# Keep container running by monitoring wipter process
+# Keep container running by monitoring wipter process!
 while true; do
     if ! pgrep -f "wipter-app" > /dev/null; then
         echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter process died, restarting..."
         cd /root/wipter/
         /root/wipter/wipter-app &
+
+        # Wait a bit before attempting to close GUI
         sleep 10
+
+        # Close GUI after restart (ignore errors if no window)
+        xdotool search --name Wipter | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
     fi
 
-    sleep 180
+    sleep 180  # Check every 185 seconds (was 30)
 done
+
