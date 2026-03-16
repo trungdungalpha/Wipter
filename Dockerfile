@@ -1,12 +1,14 @@
 FROM docker.io/ubuntu:latest
 
-# Install essential packages - bỏ TurboVNC/noVNC/nodejs/gnome-keyring, thêm xvfb
+# Install essential packages - bỏ TurboVNC/noVNC/nodejs, thêm xvfb, giữ D-Bus/Keyring để lưu login
 RUN apt-get -y update && apt-get -y --no-install-recommends --no-install-suggests install \
     wget tini xdotool gpg openssl ca-certificates \
     # Xvfb thay TurboVNC (nhẹ hơn ~60MB RAM/container)
     xvfb \
     # openbox vẫn cần cho wipter window manager
     openbox \
+    # D-Bus + GNOME Keyring để lưu login token (giữ session qua restart)
+    dbus dbus-x11 gnome-keyring libsecret-1-0 \
     # dos2unix for line ending conversion
     dos2unix \
     # Tools for wipter package download

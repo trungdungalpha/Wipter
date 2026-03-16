@@ -11,6 +11,12 @@ if [ -z "$WIPTER_PASSWORD" ]; then
     exit 1
 fi
 
+# Start a D-Bus session (cần cho GNOME Keyring lưu login token)
+eval "$(dbus-launch --sh-syntax)"
+
+# Unlock the GNOME Keyring daemon (lưu session qua restart)
+echo 'mypassword' | gnome-keyring-daemon --unlock --replace
+
 # Enable job control
 set -m
 
