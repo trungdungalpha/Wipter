@@ -67,31 +67,75 @@ if ! [ -f ~/.wipter-configured ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S'): Waiting ${LOGIN_DELAY}s before login (rate limit protection)..."
     sleep $LOGIN_DELAY
 
-    # Wait for the wipter window to be available
-    while [[ "$(xdotool search --name Wipter| wc -l)" -lt 3 ]]; do
-        sleep 10
+    WIPTER_LOG="$HOME/.config/wipter-app/logs/main.log"
+    MAX_RETRIES=5
+    LOGIN_SUCCESS=false
+
+    for attempt in $(seq 1 $MAX_RETRIES); do
+        echo "$(date '+%Y-%m-%d %H:%M:%S'): Login attempt ${attempt}/${MAX_RETRIES}..."
+
+        # Xóa log cũ để detect fresh errors
+        rm -f "$WIPTER_LOG"
+
+        # Wait for the wipter window to be available
+        WAIT_COUNT=0
+        while [[ "$(xdotool search --name Wipter 2>/dev/null | wc -l)" -lt 3 ]]; do
+            sleep 10
+            WAIT_COUNT=$((WAIT_COUNT + 1))
+            if [ $WAIT_COUNT -gt 30 ]; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S'): Timeout waiting for Wipter window"
+                break
+            fi
+        done
+
+        # Handle wipter login
+        xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowfocus 2>/dev/null
+        sleep 5
+        xdotool key Tab
+        sleep 3
+        xdotool key Tab
+        sleep 3
+        xdotool key Tab
+        sleep 3
+        xdotool type "$WIPTER_EMAIL"
+        sleep 3
+        xdotool key Tab
+        sleep 3
+        xdotool type "$WIPTER_PASSWORD"
+        sleep 3
+        xdotool key Return
+
+        # Chờ wipter xử lý login (tối đa 30s)
+        sleep 30
+
+        # Kiểm tra log xem login thành công chưa
+        if [ -f "$WIPTER_LOG" ]; then
+            if grep -q "Password attempts exceeded\|Error while trying to log in\|Error signing in" "$WIPTER_LOG"; then
+                echo "$(date '+%Y-%m-%d %H:%M:%S'): ❌ Login FAILED (rate limited). Attempt ${attempt}/${MAX_RETRIES}"
+                RETRY_DELAY=$((60 + RANDOM % 240))
+                echo "$(date '+%Y-%m-%d %H:%M:%S'): Retrying in ${RETRY_DELAY}s..."
+                xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
+                sleep $RETRY_DELAY
+                continue
+            elif grep -q "No access token detected\|redirecting to sign in" "$WIPTER_LOG" && ! grep -q "Error" "$WIPTER_LOG"; then
+                # Đang ở trang login, kiểm tra thêm
+                sleep 10
+            fi
+        fi
+
+        # Không có lỗi → coi như login thành công
+        echo "$(date '+%Y-%m-%d %H:%M:%S'): ✅ Login SUCCESS on attempt ${attempt}"
+        LOGIN_SUCCESS=true
+        xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
+        break
     done
 
-    # Handle wipter login
-    xdotool search --name Wipter | tail -n1 | xargs xdotool windowfocus
-    sleep 5
-    xdotool key Tab
-    sleep 3
-    xdotool key Tab
-    sleep 3
-    xdotool key Tab
-    sleep 3
-    xdotool type "$WIPTER_EMAIL"
-    sleep 3
-    xdotool key Tab
-    sleep 3
-    xdotool type "$WIPTER_PASSWORD"
-    sleep 3
-    xdotool key Return
-    sleep 5
-    xdotool search --name Wipter | tail -n1 | xargs xdotool windowclose
-
-    touch ~/.wipter-configured
+    if [ "$LOGIN_SUCCESS" = true ]; then
+        touch ~/.wipter-configured
+        echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter configured successfully."
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S'): ⚠️ WARNING: All ${MAX_RETRIES} login attempts failed! Container running without login."
+    fi
 fi
 
 ################################################################################
