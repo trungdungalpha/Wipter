@@ -31,9 +31,13 @@ XVFB_PID=$!
 echo "Started Xvfb (PID: $XVFB_PID)"
 
 # Chờ Xvfb sẵn sàng
-sleep 2
+sleep 1
 
 export DISPLAY=:1
+
+# Khởi động openbox WM - cần thiết để wipter-app không exit khi đóng window
+openbox &
+sleep 1
 
 echo "Starting Wipter....."
 cd /root/wipter/
@@ -96,7 +100,7 @@ if ! [ -f ~/.wipter-configured ]; then
         # Không có lỗi → login thành công
         echo "$(date '+%Y-%m-%d %H:%M:%S'): ✅ Login SUCCESS on attempt ${attempt}"
         LOGIN_SUCCESS=true
-        xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
+        # KHÔNG đóng window - để wipter-app tiếp tục chạy và generate traffic
         break
     done
 
@@ -126,13 +130,9 @@ restart_wipter() {
     cd /root/wipter/
     /root/wipter/wipter-app &
 
-    # BƯỚC 3: Đợi GUI mở xong rồi đóng để giảm RAM
-    echo "Waiting for GUI to open..."
+    # Đợi server tái kết nối
+    echo "Waiting for wipter-app to reconnect..."
     sleep 10
-
-    echo "Closing GUI..."
-    xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
-
     echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter restarted successfully."
 }
 
@@ -153,10 +153,7 @@ while true; do
         echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter process died, restarting..."
         cd /root/wipter/
         /root/wipter/wipter-app &
-
         sleep 10
-
-        xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
     fi
 
     sleep 180
