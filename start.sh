@@ -62,11 +62,6 @@ cd /root/wipter/
 /root/wipter/wipter-app &
 
 if ! [ -f ~/.wipter-configured ]; then
-    # Random delay trước khi login để tránh rate limit khi chạy hàng loạt container
-    LOGIN_DELAY=$((RANDOM % 600))
-    echo "$(date '+%Y-%m-%d %H:%M:%S'): Waiting ${LOGIN_DELAY}s before login (rate limit protection)..."
-    sleep $LOGIN_DELAY
-
     WIPTER_LOG="$HOME/.config/wipter-app/logs/main.log"
     MAX_RETRIES=5
     LOGIN_SUCCESS=false
@@ -105,7 +100,7 @@ if ! [ -f ~/.wipter-configured ]; then
         sleep 3
         xdotool key Return
 
-        # Chờ wipter xử lý login (tối đa 30s)
+        # Chờ wipter xử lý login
         sleep 30
 
         # Kiểm tra log xem login thành công chưa
@@ -117,13 +112,10 @@ if ! [ -f ~/.wipter-configured ]; then
                 xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
                 sleep $RETRY_DELAY
                 continue
-            elif grep -q "No access token detected\|redirecting to sign in" "$WIPTER_LOG" && ! grep -q "Error" "$WIPTER_LOG"; then
-                # Đang ở trang login, kiểm tra thêm
-                sleep 10
             fi
         fi
 
-        # Không có lỗi → coi như login thành công
+        # Không có lỗi → login thành công
         echo "$(date '+%Y-%m-%d %H:%M:%S'): ✅ Login SUCCESS on attempt ${attempt}"
         LOGIN_SUCCESS=true
         xdotool search --name Wipter 2>/dev/null | tail -n1 | xargs xdotool windowclose 2>/dev/null || true
@@ -134,7 +126,7 @@ if ! [ -f ~/.wipter-configured ]; then
         touch ~/.wipter-configured
         echo "$(date '+%Y-%m-%d %H:%M:%S'): Wipter configured successfully."
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S'): ⚠️ WARNING: All ${MAX_RETRIES} login attempts failed! Container running without login."
+        echo "$(date '+%Y-%m-%d %H:%M:%S'): ⚠️ WARNING: All ${MAX_RETRIES} login attempts failed!"
     fi
 fi
 
